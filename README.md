@@ -5,6 +5,8 @@
 
 A professional, browser-based utility to automatically synchronize translated subtitle files (`.srt`) using a "Ground Truth" (correctly synced) file as a reference. Specially usefull to convert different subs of different languages into the same timing. 
 
+**[Try It Here!](https://victorjulianir.github.io/srt-auto-sync/)**
+
 ## ✨ Features
 - **Automatic Offset Detection:** Finds the exact millisecond delay between files.
 - **Time-Stretching Analysis:** Detects if the lag is caused by framerate differences and calculates the exact multiplier.

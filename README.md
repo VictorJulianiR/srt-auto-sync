@@ -7,6 +7,8 @@ A professional, browser-based utility to automatically synchronize translated su
 
 **[Try It Here!](https://victorjulianir.github.io/srt-auto-sync/)**
 
+<img width="886" height="404" alt="image" src="https://github.com/user-attachments/assets/64dd3889-1308-4812-b234-5b8ee82ae7bc" />
+
 ## ✨ Features
 - **Automatic Offset Detection:** Finds the exact millisecond delay between files.
 - **Time-Stretching Analysis:** Detects if the lag is caused by framerate differences and calculates the exact multiplier.

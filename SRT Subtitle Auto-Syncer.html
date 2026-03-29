@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT Auto-Sync Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid #334155; }
+        .file-drop { border: 2px dashed #475569; transition: all 0.2s ease-in-out; }
+        .file-drop:hover { border-color: #3b82f6; background-color: #1e293b; }
+    </style>
+</head>
+<body class="min-h-screen p-6 font-sans">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="text-center space-y-2">
+            <h1 class="text-3xl font-bold text-white">SRT Subtitle Auto-Syncer</h1>
+            <p class="text-slate-400">Match a translated subtitle file to the timing of a perfectly synced ground truth file.</p>
+        </div>
+
+        <!-- Input Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Ground Truth Input -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <h2 class="text-lg font-semibold text-blue-400 mb-2">1. Ground Truth File (.srt)</h2>
+                <p class="text-sm text-slate-400 mb-4">The file that is correctly synced to the video.</p>
+                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium" id="gt-label">Click to upload or drag & drop</span>
+                    <input type="file" id="gt-file" accept=".srt" class="hidden" onchange="updateLabel('gt-file', 'gt-label')">
+                </label>
+            </div>
+
+            <!-- Translated Input -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <h2 class="text-lg font-semibold text-emerald-400 mb-2">2. Translated File (.srt)</h2>
+                <p class="text-sm text-slate-400 mb-4">The file that needs its timing fixed.</p>
+                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium" id="tr-label">Click to upload or drag & drop</span>
+                    <input type="file" id="tr-file" accept=".srt" class="hidden" onchange="updateLabel('tr-file', 'tr-label')">
+                </label>
+            </div>
+        </div>
+
+        <div class="flex justify-center">
+            <button id="process-btn" onclick="processFiles()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                Analyze & Sync Subtitles
+            </button>
+        </div>
+
+        <!-- Output Section -->
+        <div id="output-section" class="hidden space-y-6">
+            <!-- Report -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl border-l-4 border-l-blue-500">
+                <h3 class="text-xl font-bold text-white mb-2">Analysis Report</h3>
+                <div id="report-text" class="text-slate-300 whitespace-pre-line font-mono text-sm"></div>
+            </div>
+
+            <!-- Synced File Output -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-white">Synced Subtitles</h3>
+                    <a id="download-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded shadow cursor-pointer transition-colors">
+                        Download .srt
+                    </a>
+                </div>
+                <textarea id="output-text" class="w-full h-64 bg-slate-900 text-slate-300 border border-slate-700 rounded p-4 font-mono text-sm focus:outline-none" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateLabel(inputId, labelId) {
+            const input = document.getElementById(inputId);
+            const label = document.getElementById(labelId);
+            if (input.files.length > 0) {
+                label.textContent = input.files[0].name;
+                label.classList.add("text-blue-400");
+            }
+        }
+
+        async function processFiles() {
+            const gtFile = document.getElementById('gt-file').files[0];
+            const trFile = document.getElementById('tr-file').files[0];
+
+            if (!gtFile || !trFile) {
+                alert("Please upload both SRT files.");
+                return;
+            }
+
+            const btn = document.getElementById('process-btn');
+            btn.disabled = true;
+            btn.textContent = "Processing...";
+
+            try {
+                const gtText = await gtFile.text();
+                const trText = await trFile.text();
+
+                const gtSubs = parseSrt(gtText);
+                const trSubs = parseSrt(trText);
+
+                if(gtSubs.length === 0 || trSubs.length === 0) {
+                    throw new Error("Could not parse one or both subtitle files. Check format.");
+                }
+
+                const result = syncSubs(gtSubs, trSubs);
+                
+                const outputSrt = buildSrt(result.syncedSubs);
+                
+                document.getElementById('report-text').textContent = result.report;
+                document.getElementById('output-text').value = outputSrt;
+                
+                // Prepare Download
+                const blob = new Blob([outputSrt], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const dlBtn = document.getElementById('download-btn');
+                dlBtn.href = url;
+                dlBtn.download = trFile.name.replace('.srt', '_synced.srt');
+
+                document.getElementById('output-section').classList.remove('hidden');
+                
+            } catch (err) {
+                alert("Error: " + err.message);
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Analyze & Sync Subtitles";
+            }
+        }
+
+        /* --- SRT PARSER & BUILDER --- */
+        function parseSrt(data) {
+            // Normalize endings
+            data = data.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+            const blocks = data.split('\n\n');
+            const subs =[];
+            for (let block of blocks) {
+                const lines = block.split('\n');
+                if (lines.length >= 3) {
+                    const times = lines[1].split(' --> ');
+                    if (times.length === 2) {
+                        subs.push({
+                            id: lines[0],
+                            start: timeToMs(times[0]),
+                            end: timeToMs(times[1]),
+                            text: lines.slice(2).join('\n')
+                        });
+                    }
+                }
+            }
+            return subs;
+        }
+
+        function buildSrt(subs) {
+            return subs.map((sub, index) => {
+                return `${index + 1}\n${msToTime(sub.start)} --> ${msToTime(sub.end)}\n${sub.text}`;
+            }).join('\n\n');
+        }
+
+        function timeToMs(timeStr) {
+            const parts = timeStr.trim().split(',');
+            const [h, m, s] = parts[0].split(':');
+            const ms = parts[1] ? parseInt(parts[1]) : 0;
+            return parseInt(h) * 3600000 + parseInt(m) * 60000 + parseInt(s) * 1000 + ms;
+        }
+
+        function msToTime(ms) {
+            ms = Math.max(0, Math.round(ms));
+            let h = Math.floor(ms / 3600000).toString().padStart(2, '0');
+            let m = Math.floor((ms % 3600000) / 60000).toString().padStart(2, '0');
+            let s = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
+            let msec = (ms % 1000).toString().padStart(3, '0');
+            return `${h}:${m}:${s},${msec}`;
+        }
+
+        /* --- SYNCHRONIZATION ALGORITHM --- */
+        function syncSubs(gtSubs, trSubs) {
+            // Common stretching factors from different video framerates
+            const stretchCandidates =[
+                1.0,               // No stretch, just offset
+                24 / 23.976,       // NTSC to Film
+                23.976 / 24,       // Film to NTSC
+                25 / 24,           // PAL to Film
+                24 / 25,           // Film to PAL
+                25 / 23.976,       // PAL to NTSC
+                23.976 / 25        // NTSC to PAL
+            ];
+
+            // Add an empirical stretch factor ignoring extreme ends (credits, intros)
+            let gt_i1 = Math.floor(gtSubs.length * 0.1);
+            let gt_i2 = Math.floor(gtSubs.length * 0.9);
+            let tr_i1 = Math.floor(trSubs.length * 0.1);
+            let tr_i2 = Math.floor(trSubs.length * 0.9);
+            
+            if (gt_i1 < gt_i2 && tr_i1 < tr_i2) {
+                let empiricalStretch = (gtSubs[gt_i2].start - gtSubs[gt_i1].start) / (trSubs[tr_i2].start - trSubs[tr_i1].start);
+                stretchCandidates.push(empiricalStretch);
+            }
+
+            let bestMatchCount = -1;
+            let bestStretch = 1;
+            let bestOffset = 0;
+
+            // Evaluate all potential framerate stretch factors
+            for (let stretch of stretchCandidates) {
+                let offset = findRobustOffset(gtSubs, trSubs, stretch);
+                
+                // Score the combination by counting how many subtitles align correctly
+                let matches = 0;
+                for (let tr of trSubs) {
+                    let syncedStart = tr.start * stretch + offset;
+                    // Check if there is a Ground truth subtitle closely matching this time
+                    for (let gt of gtSubs) {
+                        if (Math.abs(gt.start - syncedStart) < 150) { // 150ms tolerance
+                            matches++;
+                            break;
+                        }
+                    }
+                }
+
+                if (matches > bestMatchCount) {
+                    bestMatchCount = matches;
+                    bestStretch = stretch;
+                    bestOffset = offset;
+                }
+            }
+
+            // Generate Output Report
+            let report = "";
+            let matchConfidence = Math.round((bestMatchCount / trSubs.length) * 100);
+            
+            if (Math.abs(bestStretch - 1.0) < 0.001) {
+                report = `✅ ANALYSIS COMPLETE\n\n` +
+                         `Conclusion: The entry point was wrong (Constant Offset).\n` +
+                         `No significant time stretching / framerate differences were detected.\n\n` +
+                         `• Time Stretching Applied: None (1.0x)\n` +
+                         `• Entry Offset Applied: ${bestOffset.toFixed(0)} ms\n` +
+                         `• Subtitle Match Confidence: ${matchConfidence}%`;
+            } else {
+                let stretchName = "Custom empirical stretch";
+                if (Math.abs(bestStretch - (24/23.976)) < 0.001) stretchName = "23.976fps → 24fps";
+                if (Math.abs(bestStretch - (23.976/24)) < 0.001) stretchName = "24fps → 23.976fps";
+                if (Math.abs(bestStretch - (25/24)) < 0.001) stretchName = "24fps → 25fps";
+                if (Math.abs(bestStretch - (24/25)) < 0.001) stretchName = "25fps → 24fps";
+
+                report = `⚠️ ANALYSIS COMPLETE\n\n` +
+                         `Conclusion: Framerate difference / Time Stretching detected.\n` +
+                         `The translated file was stretched and delayed compared to the ground truth.\n\n` +
+                         `• Detected Framerate Change: ${stretchName}\n` +
+                         `• Exact Stretch Multiplier: ${bestStretch.toFixed(5)}x\n` +
+                         `• Base Entry Offset Applied: ${bestOffset.toFixed(0)} ms\n` +
+                         `• Subtitle Match Confidence: ${matchConfidence}%`;
+            }
+
+            // Apply corrections to the TR subs
+            let syncedSubs = trSubs.map(sub => {
+                return {
+                    id: sub.id,
+                    start: Math.round(sub.start * bestStretch + bestOffset),
+                    end: Math.round(sub.end * bestStretch + bestOffset),
+                    text: sub.text
+                };
+            });
+
+            return { syncedSubs, report };
+        }
+
+        // A voting algorithm to reliably find the global offset between two files, 
+        // ignoring extra translator credits, missing lines, and splits.
+        function findRobustOffset(gtSubs, trSubs, stretch) {
+            let bins = {};
+            let maxCount = 0;
+            let bestBin = 0;
+
+            // Step prevents browser freezing on massive files (e.g. 5000+ subs)
+            let step = Math.max(1, Math.floor(trSubs.length / 500)); 
+
+            // Create a histogram of all offset combinations (O(N^2) but optimized)
+            for (let i = 0; i < gtSubs.length; i += step) {
+                for (let j = 0; j < trSubs.length; j += step) {
+                    let off = gtSubs[i].start - (trSubs[j].start * stretch);
+                    let bin = Math.round(off / 100) * 100; // Group in 100ms blocks
+                    bins[bin] = (bins[bin] || 0) + 1;
+                    if (bins[bin] > maxCount) {
+                        maxCount = bins[bin];
+                        bestBin = bin;
+                    }
+                }
+            }
+
+            // Collect exact offsets that fell into the winning bin
+            let validOffsets =[];
+            for (let i = 0; i < gtSubs.length; i++) {
+                for (let j = 0; j < trSubs.length; j++) {
+                    let off = gtSubs[i].start - (trSubs[j].start * stretch);
+                    if (Math.abs(off - bestBin) <= 150) {
+                        validOffsets.push(off);
+                    }
+                }
+            }
+            
+            if (validOffsets.length === 0) return bestBin;
+
+            // Return median of the valid cluster
+            validOffsets.sort((a,b) => a-b);
+            return validOffsets[Math.floor(validOffsets.length / 2)];
+        }
+    </script>
+</body>
+</html>

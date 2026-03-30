@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SRT Auto-Sync Tool</title>
-    <!-- SEO e Meta Tags -->
-    <meta name="description" content="Free online tool to sync translated SRT subtitles. Automatically detects time-stretching (framerate issues) and entry point offsets using a ground truth file.">
-    <meta name="keywords" content="SRT Sync, Subtitle Aligner, Fix Subtitle Lag, Translated Subtitles Sync, Time Stretching SRT, Framerate Converter Subtitles">
+    <meta name="description" content="Free online tool to sync translated SRT subtitles. Features Dynamic Time Warping for complex framerate and commercial break syncs.">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -24,9 +22,7 @@
             <p class="text-slate-400">Match a translated subtitle file to the timing of a perfectly synced ground truth file.</p>
         </div>
 
-        <!-- Input Section -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Ground Truth Input -->
             <div class="glass-panel p-6 rounded-xl shadow-xl">
                 <h2 class="text-lg font-semibold text-blue-400 mb-2">1. Ground Truth File (.srt)</h2>
                 <p class="text-sm text-slate-400 mb-4">The file that is correctly synced to the video.</p>
@@ -37,7 +33,6 @@
                 </label>
             </div>
 
-            <!-- Translated Input -->
             <div class="glass-panel p-6 rounded-xl shadow-xl">
                 <h2 class="text-lg font-semibold text-emerald-400 mb-2">2. Translated File (.srt)</h2>
                 <p class="text-sm text-slate-400 mb-4">The file that needs its timing fixed.</p>
@@ -55,15 +50,12 @@
             </button>
         </div>
 
-        <!-- Output Section -->
         <div id="output-section" class="hidden space-y-6">
-            <!-- Report -->
             <div class="glass-panel p-6 rounded-xl shadow-xl border-l-4 border-l-blue-500">
                 <h3 class="text-xl font-bold text-white mb-2">Analysis Report</h3>
                 <div id="report-text" class="text-slate-300 whitespace-pre-line font-mono text-sm"></div>
             </div>
 
-            <!-- Synced File Output -->
             <div class="glass-panel p-6 rounded-xl shadow-xl">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-bold text-white">Synced Subtitles</h3>
@@ -78,7 +70,6 @@
 
     <script>
         /* --- DRAG AND DROP SETUP --- */
-        // Block the browser from opening files if you accidentally drop them outside the box
         window.addEventListener('dragover', (e) => e.preventDefault(), false);
         window.addEventListener('drop', (e) => e.preventDefault(), false);
 
@@ -86,43 +77,31 @@
             const dropZone = document.getElementById(dropZoneId);
             const input = document.getElementById(inputId);
 
-            // Add visual cue when dragging over
             dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('drag-over');
+                e.preventDefault(); dropZone.classList.add('drag-over');
             });
 
-            // Remove visual cue when leaving
             dropZone.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('drag-over');
+                e.preventDefault(); dropZone.classList.remove('drag-over');
             });
 
-            // Handle the actual drop
             dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('drag-over');
-
+                e.preventDefault(); dropZone.classList.remove('drag-over');
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     const file = e.dataTransfer.files[0];
                     if (file.name.endsWith('.srt')) {
-                        // Assign the dropped file to the hidden input
                         input.files = e.dataTransfer.files;
                         updateLabel(inputId, labelId);
-                    } else {
-                        alert("Please drop a valid .srt file.");
-                    }
+                    } else alert("Please drop a valid .srt file.");
                 }
             });
         }
 
-        // Initialize drop zones once the page loads
         window.onload = () => {
             setupDragAndDrop('gt-drop-zone', 'gt-file', 'gt-label');
             setupDragAndDrop('tr-drop-zone', 'tr-file', 'tr-label');
         };
 
-        /* --- LOGIC --- */
         function updateLabel(inputId, labelId) {
             const input = document.getElementById(inputId);
             const label = document.getElementById(labelId);
@@ -134,21 +113,15 @@
 
         async function readSrtFile(file) {
             const buffer = await file.arrayBuffer();
-            try {
-                return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-            } catch (e) {
-                return new TextDecoder('windows-1252').decode(buffer);
-            }
+            try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); } 
+            catch (e) { return new TextDecoder('windows-1252').decode(buffer); }
         }
 
         async function processFiles() {
             const gtFile = document.getElementById('gt-file').files[0];
             const trFile = document.getElementById('tr-file').files[0];
 
-            if (!gtFile || !trFile) {
-                alert("Please upload both SRT files.");
-                return;
-            }
+            if (!gtFile || !trFile) { alert("Please upload both SRT files."); return; }
 
             const btn = document.getElementById('process-btn');
             btn.disabled = true;
@@ -161,9 +134,7 @@
                 const gtSubs = parseSrt(gtText);
                 const trSubs = parseSrt(trText);
 
-                if(gtSubs.length === 0 || trSubs.length === 0) {
-                    throw new Error("Could not parse one or both subtitle files. Check format.");
-                }
+                if(gtSubs.length === 0 || trSubs.length === 0) throw new Error("Could not parse files.");
 
                 const result = syncSubs(gtSubs, trSubs);
                 const outputSrt = buildSrt(result.syncedSubs);
@@ -181,17 +152,14 @@
                 dlBtn.download = outName;
 
                 document.getElementById('output-section').classList.remove('hidden');
-                
             } catch (err) {
-                alert("Error: " + err.message);
-                console.error(err);
+                alert("Error: " + err.message); console.error(err);
             } finally {
-                btn.disabled = false;
-                btn.textContent = "Analyze & Sync Subtitles";
+                btn.disabled = false; btn.textContent = "Analyze & Sync Subtitles";
             }
         }
 
-        /* --- SRT PARSER & BUILDER --- */
+        /* --- PARSERS --- */
         function parseSrt(data) {
             data = data.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
             const blocks = data.split('\n\n');
@@ -214,9 +182,7 @@
         }
 
         function buildSrt(subs) {
-            return subs.map((sub, index) => {
-                return `${index + 1}\n${msToTime(sub.start)} --> ${msToTime(sub.end)}\n${sub.text}`;
-            }).join('\n\n');
+            return subs.map((sub, index) => `${index + 1}\n${msToTime(sub.start)} --> ${msToTime(sub.end)}\n${sub.text}`).join('\n\n');
         }
 
         function timeToMs(timeStr) {
@@ -235,96 +201,184 @@
             return `${h}:${m}:${s},${msec}`;
         }
 
-        /* --- SYNCHRONIZATION ALGORITHM --- */
+        /* --- SYNCHRONIZATION CORE --- */
         function syncSubs(gtSubs, trSubs) {
-            const stretchCandidates =[
-                1.0,               
-                24 / 23.976,       
-                23.976 / 24,       
-                25 / 24,           
-                24 / 25,           
-                25 / 23.976,       
-                23.976 / 25        
-            ];
-
-            let gt_i1 = Math.floor(gtSubs.length * 0.1);
-            let gt_i2 = Math.floor(gtSubs.length * 0.9);
-            let tr_i1 = Math.floor(trSubs.length * 0.1);
-            let tr_i2 = Math.floor(trSubs.length * 0.9);
-            
-            if (gt_i1 < gt_i2 && tr_i1 < tr_i2) {
-                let empiricalStretch = (gtSubs[gt_i2].start - gtSubs[gt_i1].start) / (trSubs[tr_i2].start - trSubs[tr_i1].start);
-                stretchCandidates.push(empiricalStretch);
-            }
-
+            // 1. Busca Global (Acha a "Espinha Dorsal" do episódio)
+            const stretchCandidates =[1.0, 24/23.976, 23.976/24, 25/24, 24/25, 25/23.976, 23.976/25];
             let bestMatchCount = -1;
             let bestStretch = 1;
             let bestOffset = 0;
 
             for (let stretch of stretchCandidates) {
                 let offset = findRobustOffset(gtSubs, trSubs, stretch);
-                
                 let matches = 0;
                 for (let tr of trSubs) {
                     let syncedStart = tr.start * stretch + offset;
                     for (let gt of gtSubs) {
-                        if (Math.abs(gt.start - syncedStart) < 150) { 
-                            matches++;
-                            break;
-                        }
+                        if (Math.abs(gt.start - syncedStart) < 150) { matches++; break; }
                     }
                 }
-
                 if (matches > bestMatchCount) {
-                    bestMatchCount = matches;
-                    bestStretch = stretch;
-                    bestOffset = offset;
+                    bestMatchCount = matches; bestStretch = stretch; bestOffset = offset;
                 }
             }
 
-            let report = "";
-            let matchConfidence = Math.round((bestMatchCount / trSubs.length) * 100);
-            
-            if (Math.abs(bestStretch - 1.0) < 0.001) {
-                report = `✅ ANALYSIS COMPLETE\n\n` +
-                         `Conclusion: The entry point was wrong (Constant Offset).\n` +
-                         `No significant time stretching / framerate differences were detected.\n\n` +
-                         `• Time Stretching Applied: None (1.0x)\n` +
-                         `• Entry Offset Applied: ${bestOffset.toFixed(0)} ms\n` +
-                         `• Subtitle Match Confidence: ${matchConfidence}%`;
-            } else {
-                let stretchName = "Custom empirical stretch";
-                if (Math.abs(bestStretch - (24/23.976)) < 0.001) stretchName = "23.976fps → 24fps";
-                if (Math.abs(bestStretch - (23.976/24)) < 0.001) stretchName = "24fps → 23.976fps";
-                if (Math.abs(bestStretch - (25/24)) < 0.001) stretchName = "24fps → 25fps";
-                if (Math.abs(bestStretch - (24/25)) < 0.001) stretchName = "25fps → 24fps";
+            let globalConfidence = bestMatchCount / trSubs.length;
 
-                report = `⚠️ ANALYSIS COMPLETE\n\n` +
-                         `Conclusion: Framerate difference / Time Stretching detected.\n` +
-                         `The translated file was stretched and delayed compared to the ground truth.\n\n` +
-                         `• Detected Framerate Change: ${stretchName}\n` +
-                         `• Exact Stretch Multiplier: ${bestStretch.toFixed(5)}x\n` +
-                         `• Base Entry Offset Applied: ${bestOffset.toFixed(0)} ms\n` +
-                         `• Subtitle Match Confidence: ${matchConfidence}%`;
+            // 2. Se a confiança for baixa (Série de TV com cortes), Ativa Busca Dinâmica com as dicas Globais
+            if (globalConfidence < 0.85) {
+                let dynamicResult = performDynamicSync(gtSubs, trSubs, bestStretch, bestOffset);
+                
+                if (dynamicResult && dynamicResult.matches > bestMatchCount) {
+                    let dynConf = Math.round((dynamicResult.matches / trSubs.length) * 100);
+                    let report = `🔥 DEEP ANALYSIS TRIGGERED\n\n` +
+                                 `Conclusion: Complex desynchronization detected.\n` +
+                                 `The file contains variable shifts (commercial breaks or scene cuts).\n\n` +
+                                 `• Base Stretch Applied: ${bestStretch.toFixed(5)}x\n` +
+                                 `• Sync Method: Dynamic Time Warping (Piecewise)\n` +
+                                 `• Anchor Points Mapped: ${dynamicResult.anchors.length}\n` +
+                                 `• Subtitle Match Confidence: ${dynConf}% (Upgraded from ${Math.round(globalConfidence*100)}%)`;
+                    return { syncedSubs: dynamicResult.syncedSubs, report };
+                }
             }
 
-            let syncedSubs = trSubs.map(sub => {
-                return {
-                    id: sub.id,
-                    start: Math.round(sub.start * bestStretch + bestOffset),
-                    end: Math.round(sub.end * bestStretch + bestOffset),
-                    text: sub.text
-                };
-            });
+            // 3. Fallback: Retorna o resultado Global Simples se a Dinâmica não ajudou
+            let matchConf = Math.round(globalConfidence * 100);
+            let report = "";
+            if (Math.abs(bestStretch - 1.0) < 0.001) {
+                report = `✅ ANALYSIS COMPLETE\n\nConclusion: The entry point was wrong (Constant Offset).\nNo significant time stretching detected.\n\n• Stretch: None (1.0x)\n• Offset: ${bestOffset.toFixed(0)} ms\n• Confidence: ${matchConf}%`;
+            } else {
+                report = `⚠️ ANALYSIS COMPLETE\n\nConclusion: Framerate difference detected.\n\n• Exact Stretch: ${bestStretch.toFixed(5)}x\n• Base Offset: ${bestOffset.toFixed(0)} ms\n• Confidence: ${matchConf}%`;
+            }
+
+            let syncedSubs = trSubs.map(sub => ({
+                id: sub.id,
+                start: Math.round(sub.start * bestStretch + bestOffset),
+                end: Math.round(sub.end * bestStretch + bestOffset),
+                text: sub.text
+            }));
 
             return { syncedSubs, report };
         }
 
+        /* --- DYNAMIC TIME WARPING (CORRIGIDO COM JANELA E EXPECTATIVA) --- */
+        function performDynamicSync(gtSubs, trSubs, baseStretch, baseOffset) {
+            let anchors =[];
+            const WINDOW_SIZE = 40; // Analisa blocos maiores (40 legendas) para estabilidade
+            let expectedOffset = baseOffset; // Começamos com a "espinha dorsal" global
+
+            // Etapa 1: Encontrar os Âncoras Locais
+            for (let i = 0; i < trSubs.length; i += Math.floor(WINDOW_SIZE/2)) {
+                let chunk = trSubs.slice(i, i + WINDOW_SIZE);
+                if (chunk.length < 10) continue; 
+
+                let bins = {};
+                let maxCount = 0;
+                let bestBin = expectedOffset;
+
+                for (let tr of chunk) {
+                    let expectedGtTime = (tr.start * baseStretch) + expectedOffset;
+                    
+                    for (let gt of gtSubs) {
+                        // CRUCIAL: Só olhamos +- 25 segundos ao redor do tempo esperado!
+                        // Isso resolve o Bug da Alucinação de cena que pulava pra 3 minutos longe.
+                        if (Math.abs(gt.start - expectedGtTime) < 25000) {
+                            let off = gt.start - (tr.start * baseStretch);
+                            let bin = Math.round(off / 100) * 100;
+                            bins[bin] = (bins[bin] || 0) + 1;
+                            
+                            if (bins[bin] > maxCount) {
+                                maxCount = bins[bin];
+                                bestBin = bin;
+                            } else if (bins[bin] === maxCount) {
+                                // Desempate: Se houver dois picos, escolhe o mais próximo do Offset esperado
+                                if (Math.abs(bin - expectedOffset) < Math.abs(bestBin - expectedOffset)) {
+                                    bestBin = bin;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Verifica a confiança deste pedaço
+                let matches = 0;
+                for (let tr of chunk) {
+                    let syncedStart = (tr.start * baseStretch) + bestBin;
+                    for (let gt of gtSubs) {
+                        if (Math.abs(gt.start - syncedStart) < 300) { matches++; break; }
+                    }
+                }
+
+                // Se bater > 15%, é uma âncora real.
+                if ((matches / chunk.length) >= 0.15) { 
+                    let centerTime = chunk[Math.floor(chunk.length / 2)].start;
+                    anchors.push({ time: centerTime, offset: bestBin });
+                    expectedOffset = bestBin; // Atualiza a expectativa para a próxima cena
+                }
+            }
+
+            if (anchors.length < 2) return null;
+
+            // Etapa 2: Aplicar Correções por Pedaço
+            let syncedSubs = trSubs.map(sub => {
+                let time = sub.start;
+                let finalOffset = anchors[0].offset;
+                
+                if (time <= anchors[0].time) {
+                    finalOffset = anchors[0].offset;
+                } else if (time >= anchors[anchors.length - 1].time) {
+                    finalOffset = anchors[anchors.length - 1].offset;
+                } else {
+                    for (let i = 0; i < anchors.length - 1; i++) {
+                        let a1 = anchors[i];
+                        let a2 = anchors[i + 1];
+                        
+                        if (time >= a1.time && time <= a2.time) {
+                            let timeDiffSec = (a2.time - a1.time) / 1000;
+                            let offsetDiffMs = Math.abs(a2.offset - a1.offset);
+                            let driftRate = timeDiffSec > 0 ? (offsetDiffMs / timeDiffSec) : 0;
+                            
+                            // Detecção de Corte de Comercial vs Esticamento
+                            // Qualquer salto maior que 5 milissegundos por segundo não é framerate, é corte de TV
+                            if (driftRate > 5) {
+                                let midpoint = a1.time + (a2.time - a1.time) / 2;
+                                finalOffset = time < midpoint ? a1.offset : a2.offset;
+                            } else {
+                                let progress = (time - a1.time) / (a2.time - a1.time);
+                                finalOffset = a1.offset + (a2.offset - a1.offset) * progress;
+                            }
+                            break;
+                        }
+                    }
+                }
+                
+                return {
+                    id: sub.id,
+                    start: Math.round(sub.start * baseStretch + finalOffset),
+                    end: Math.round(sub.end * baseStretch + finalOffset),
+                    text: sub.text
+                };
+            });
+
+            // Re-calcula confiança
+            let totalMatches = 0;
+            for (let tr of syncedSubs) {
+                for (let gt of gtSubs) {
+                    if (Math.abs(gt.start - tr.start) < 200) {
+                        totalMatches++;
+                        break;
+                    }
+                }
+            }
+
+            return { syncedSubs, matches: totalMatches, anchors };
+        }
+
+        /* --- HISTOGRAM VOTING (GLOBAL) --- */
         function findRobustOffset(gtSubs, trSubs, stretch) {
             let bins = {};
             let maxCount = 0;
             let bestBin = 0;
-
             let step = Math.max(1, Math.floor(trSubs.length / 500)); 
 
             for (let i = 0; i < gtSubs.length; i += step) {
@@ -332,10 +386,7 @@
                     let off = gtSubs[i].start - (trSubs[j].start * stretch);
                     let bin = Math.round(off / 100) * 100; 
                     bins[bin] = (bins[bin] || 0) + 1;
-                    if (bins[bin] > maxCount) {
-                        maxCount = bins[bin];
-                        bestBin = bin;
-                    }
+                    if (bins[bin] > maxCount) { maxCount = bins[bin]; bestBin = bin; }
                 }
             }
 
@@ -343,14 +394,11 @@
             for (let i = 0; i < gtSubs.length; i++) {
                 for (let j = 0; j < trSubs.length; j++) {
                     let off = gtSubs[i].start - (trSubs[j].start * stretch);
-                    if (Math.abs(off - bestBin) <= 150) {
-                        validOffsets.push(off);
-                    }
+                    if (Math.abs(off - bestBin) <= 150) validOffsets.push(off);
                 }
             }
             
             if (validOffsets.length === 0) return bestBin;
-
             validOffsets.sort((a,b) => a-b);
             return validOffsets[Math.floor(validOffsets.length / 2)];
         }

@@ -13,7 +13,7 @@
         body { background-color: #0f172a; color: #e2e8f0; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid #334155; }
         .file-drop { border: 2px dashed #475569; transition: all 0.2s ease-in-out; }
-        .file-drop:hover { border-color: #3b82f6; background-color: #1e293b; }
+        .file-drop:hover, .drag-over { border-color: #3b82f6 !important; background-color: #1e293b !important; }
     </style>
 </head>
 <body class="min-h-screen p-6 font-sans">
@@ -30,9 +30,9 @@
             <div class="glass-panel p-6 rounded-xl shadow-xl">
                 <h2 class="text-lg font-semibold text-blue-400 mb-2">1. Ground Truth File (.srt)</h2>
                 <p class="text-sm text-slate-400 mb-4">The file that is correctly synced to the video.</p>
-                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
-                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <span class="text-sm font-medium text-center" id="gt-label">Click to upload or drag & drop</span>
+                <label id="gt-drop-zone" class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium text-center pointer-events-none" id="gt-label">Click to upload or drag & drop</span>
                     <input type="file" id="gt-file" accept=".srt" class="hidden" onchange="updateLabel('gt-file', 'gt-label')">
                 </label>
             </div>
@@ -41,9 +41,9 @@
             <div class="glass-panel p-6 rounded-xl shadow-xl">
                 <h2 class="text-lg font-semibold text-emerald-400 mb-2">2. Translated File (.srt)</h2>
                 <p class="text-sm text-slate-400 mb-4">The file that needs its timing fixed.</p>
-                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
-                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <span class="text-sm font-medium text-center" id="tr-label">Click to upload or drag & drop</span>
+                <label id="tr-drop-zone" class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium text-center pointer-events-none" id="tr-label">Click to upload or drag & drop</span>
                     <input type="file" id="tr-file" accept=".srt" class="hidden" onchange="updateLabel('tr-file', 'tr-label')">
                 </label>
             </div>
@@ -77,6 +77,52 @@
     </div>
 
     <script>
+        /* --- DRAG AND DROP SETUP --- */
+        // Block the browser from opening files if you accidentally drop them outside the box
+        window.addEventListener('dragover', (e) => e.preventDefault(), false);
+        window.addEventListener('drop', (e) => e.preventDefault(), false);
+
+        function setupDragAndDrop(dropZoneId, inputId, labelId) {
+            const dropZone = document.getElementById(dropZoneId);
+            const input = document.getElementById(inputId);
+
+            // Add visual cue when dragging over
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            // Remove visual cue when leaving
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+            });
+
+            // Handle the actual drop
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.name.endsWith('.srt')) {
+                        // Assign the dropped file to the hidden input
+                        input.files = e.dataTransfer.files;
+                        updateLabel(inputId, labelId);
+                    } else {
+                        alert("Please drop a valid .srt file.");
+                    }
+                }
+            });
+        }
+
+        // Initialize drop zones once the page loads
+        window.onload = () => {
+            setupDragAndDrop('gt-drop-zone', 'gt-file', 'gt-label');
+            setupDragAndDrop('tr-drop-zone', 'tr-file', 'tr-label');
+        };
+
+        /* --- LOGIC --- */
         function updateLabel(inputId, labelId) {
             const input = document.getElementById(inputId);
             const label = document.getElementById(labelId);
@@ -86,14 +132,11 @@
             }
         }
 
-        // Lê o arquivo e resolve os acentos automaticamente (ANSI para UTF-8)
         async function readSrtFile(file) {
             const buffer = await file.arrayBuffer();
             try {
-                // Tenta ler como UTF-8 puro. Se falhar, vai pro catch.
                 return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
             } catch (e) {
-                // Se falhou o UTF-8, lê como padrão ANSI/Windows (resolve acentos do pt-BR)
                 return new TextDecoder('windows-1252').decode(buffer);
             }
         }
@@ -112,7 +155,6 @@
             btn.textContent = "Processing...";
 
             try {
-                // Lendo os arquivos usando a função que corrige acentos
                 const gtText = await readSrtFile(gtFile);
                 const trText = await readSrtFile(trFile);
 
@@ -129,13 +171,11 @@
                 document.getElementById('report-text').textContent = result.report;
                 document.getElementById('output-text').value = outputSrt;
                 
-                // PREPARAR DOWNLOAD com BOM (\uFEFF) para garantir acentos nas TVs e Windows
                 const blob = new Blob(['\uFEFF' + outputSrt], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const dlBtn = document.getElementById('download-btn');
                 dlBtn.href = url;
                 
-                // Nome do arquivo de saída
                 let outName = trFile.name.replace('.srt', '_synced.srt');
                 if(!outName.endsWith('.srt')) outName += '.srt';
                 dlBtn.download = outName;
@@ -153,7 +193,6 @@
 
         /* --- SRT PARSER & BUILDER --- */
         function parseSrt(data) {
-            // Normalize line endings and remove extra spaces
             data = data.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
             const blocks = data.split('\n\n');
             const subs =[];
@@ -199,13 +238,13 @@
         /* --- SYNCHRONIZATION ALGORITHM --- */
         function syncSubs(gtSubs, trSubs) {
             const stretchCandidates =[
-                1.0,               // No stretch, just offset
-                24 / 23.976,       // NTSC to Film
-                23.976 / 24,       // Film to NTSC
-                25 / 24,           // PAL to Film
-                24 / 25,           // Film to PAL
-                25 / 23.976,       // PAL to NTSC
-                23.976 / 25        // NTSC to PAL
+                1.0,               
+                24 / 23.976,       
+                23.976 / 24,       
+                25 / 24,           
+                24 / 25,           
+                25 / 23.976,       
+                23.976 / 25        
             ];
 
             let gt_i1 = Math.floor(gtSubs.length * 0.1);

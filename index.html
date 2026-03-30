@@ -1,4 +1,82 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT Auto-Sync Tool</title>
+    <!-- SEO e Meta Tags -->
+    <meta name="description" content="Free online tool to sync translated SRT subtitles. Automatically detects time-stretching (framerate issues) and entry point offsets using a ground truth file.">
+    <meta name="keywords" content="SRT Sync, Subtitle Aligner, Fix Subtitle Lag, Translated Subtitles Sync, Time Stretching SRT, Framerate Converter Subtitles">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid #334155; }
+        .file-drop { border: 2px dashed #475569; transition: all 0.2s ease-in-out; }
+        .file-drop:hover { border-color: #3b82f6; background-color: #1e293b; }
+    </style>
+</head>
+<body class="min-h-screen p-6 font-sans">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="text-center space-y-2">
+            <h1 class="text-3xl font-bold text-white">SRT Subtitle Auto-Syncer</h1>
+            <p class="text-slate-400">Match a translated subtitle file to the timing of a perfectly synced ground truth file.</p>
+        </div>
+
+        <!-- Input Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Ground Truth Input -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <h2 class="text-lg font-semibold text-blue-400 mb-2">1. Ground Truth File (.srt)</h2>
+                <p class="text-sm text-slate-400 mb-4">The file that is correctly synced to the video.</p>
+                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium text-center" id="gt-label">Click to upload or drag & drop</span>
+                    <input type="file" id="gt-file" accept=".srt" class="hidden" onchange="updateLabel('gt-file', 'gt-label')">
+                </label>
+            </div>
+
+            <!-- Translated Input -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <h2 class="text-lg font-semibold text-emerald-400 mb-2">2. Translated File (.srt)</h2>
+                <p class="text-sm text-slate-400 mb-4">The file that needs its timing fixed.</p>
+                <label class="file-drop rounded-lg p-6 flex flex-col items-center cursor-pointer">
+                    <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span class="text-sm font-medium text-center" id="tr-label">Click to upload or drag & drop</span>
+                    <input type="file" id="tr-file" accept=".srt" class="hidden" onchange="updateLabel('tr-file', 'tr-label')">
+                </label>
+            </div>
+        </div>
+
+        <div class="flex justify-center">
+            <button id="process-btn" onclick="processFiles()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                Analyze & Sync Subtitles
+            </button>
+        </div>
+
+        <!-- Output Section -->
+        <div id="output-section" class="hidden space-y-6">
+            <!-- Report -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl border-l-4 border-l-blue-500">
+                <h3 class="text-xl font-bold text-white mb-2">Analysis Report</h3>
+                <div id="report-text" class="text-slate-300 whitespace-pre-line font-mono text-sm"></div>
+            </div>
+
+            <!-- Synced File Output -->
+            <div class="glass-panel p-6 rounded-xl shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-white">Synced Subtitles</h3>
+                    <a id="download-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded shadow cursor-pointer transition-colors">
+                        Download .srt
+                    </a>
+                </div>
+                <textarea id="output-text" class="w-full h-64 bg-slate-900 text-slate-300 border border-slate-700 rounded p-4 font-mono text-sm focus:outline-none" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
         function updateLabel(inputId, labelId) {
             const input = document.getElementById(inputId);
             const label = document.getElementById(labelId);
@@ -8,15 +86,14 @@
             }
         }
 
-        // NOVA FUNÇÃO: Lê o arquivo e resolve os acentos automaticamente (ANSI para UTF-8)
+        // Lê o arquivo e resolve os acentos automaticamente (ANSI para UTF-8)
         async function readSrtFile(file) {
             const buffer = await file.arrayBuffer();
             try {
-                // Tenta ler como UTF-8 puro. Se tiver acentos mal formatados (ANSI), ele dá erro.
+                // Tenta ler como UTF-8 puro. Se falhar, vai pro catch.
                 return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
             } catch (e) {
-                // Se deu erro, é porque provavelmente está em ANSI (Windows-1252).
-                // Ele converte do padrão latino/português para UTF-8.
+                // Se falhou o UTF-8, lê como padrão ANSI/Windows (resolve acentos do pt-BR)
                 return new TextDecoder('windows-1252').decode(buffer);
             }
         }
@@ -35,7 +112,7 @@
             btn.textContent = "Processing...";
 
             try {
-                // Substituímos as chamadas antigas pela nova função de leitura com conversão
+                // Lendo os arquivos usando a função que corrige acentos
                 const gtText = await readSrtFile(gtFile);
                 const trText = await readSrtFile(trFile);
 
@@ -47,19 +124,21 @@
                 }
 
                 const result = syncSubs(gtSubs, trSubs);
-                
                 const outputSrt = buildSrt(result.syncedSubs);
                 
                 document.getElementById('report-text').textContent = result.report;
                 document.getElementById('output-text').value = outputSrt;
                 
-                // PREPARAR DOWNLOAD: '\uFEFF' adiciona o BOM (Byte Order Mark) do UTF-8. 
-                // Isso força o Windows e TVs a lerem os acentos corretamente.
+                // PREPARAR DOWNLOAD com BOM (\uFEFF) para garantir acentos nas TVs e Windows
                 const blob = new Blob(['\uFEFF' + outputSrt], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const dlBtn = document.getElementById('download-btn');
                 dlBtn.href = url;
-                dlBtn.download = trFile.name.replace('.srt', '_synced.srt');
+                
+                // Nome do arquivo de saída
+                let outName = trFile.name.replace('.srt', '_synced.srt');
+                if(!outName.endsWith('.srt')) outName += '.srt';
+                dlBtn.download = outName;
 
                 document.getElementById('output-section').classList.remove('hidden');
                 
@@ -74,7 +153,7 @@
 
         /* --- SRT PARSER & BUILDER --- */
         function parseSrt(data) {
-            // Normalize endings
+            // Normalize line endings and remove extra spaces
             data = data.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
             const blocks = data.split('\n\n');
             const subs =[];
@@ -237,3 +316,5 @@
             return validOffsets[Math.floor(validOffsets.length / 2)];
         }
     </script>
+</body>
+</html>

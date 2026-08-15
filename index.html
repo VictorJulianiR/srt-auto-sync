@@ -224,12 +224,14 @@
             }
 
             let globalConfidence = bestMatchCount / trSubs.length;
+            let dynamicFallbackReason = "";
 
             // 2. Se a confiança for baixa (Série de TV com cortes), Ativa Busca Dinâmica com as dicas Globais
             if (globalConfidence < 0.85) {
                 let dynamicResult = performDynamicSync(gtSubs, trSubs, bestStretch, bestOffset);
-                
-                if (dynamicResult && dynamicResult.matches > bestMatchCount) {
+                let dynamicDecision = evaluateDynamicResult(dynamicResult, bestMatchCount, trSubs.length);
+
+                if (dynamicDecision.useDynamic) {
                     let dynConf = Math.round((dynamicResult.matches / trSubs.length) * 100);
                     let report = `🔥 DEEP ANALYSIS TRIGGERED\n\n` +
                                  `Conclusion: Complex desynchronization detected.\n` +
@@ -240,6 +242,8 @@
                                  `• Subtitle Match Confidence: ${dynConf}% (Upgraded from ${Math.round(globalConfidence*100)}%)`;
                     return { syncedSubs: dynamicResult.syncedSubs, report };
                 }
+
+                dynamicFallbackReason = dynamicDecision.reason;
             }
 
             // 3. Fallback: Retorna o resultado Global Simples se a Dinâmica não ajudou
@@ -251,6 +255,10 @@
                 report = `⚠️ ANALYSIS COMPLETE\n\nConclusion: Framerate difference detected.\n\n• Exact Stretch: ${bestStretch.toFixed(5)}x\n• Base Offset: ${bestOffset.toFixed(0)} ms\n• Confidence: ${matchConf}%`;
             }
 
+            if (dynamicFallbackReason) {
+                report += `\n\n🛡️ Safety check: Dynamic correction was not applied (${dynamicFallbackReason}).\nThe stable global transformation was used instead.`;
+            }
+
             let syncedSubs = trSubs.map(sub => ({
                 id: sub.id,
                 start: Math.round(sub.start * bestStretch + bestOffset),
@@ -259,6 +267,53 @@
             }));
 
             return { syncedSubs, report };
+        }
+
+        function validateSubtitleTimeline(subs) {
+            for (let i = 0; i < subs.length; i++) {
+                let sub = subs[i];
+
+                if (!Number.isFinite(sub.start) || !Number.isFinite(sub.end)) {
+                    return { valid: false, reason: `entry ${i + 1} has an invalid timestamp` };
+                }
+
+                if (sub.start < 0) {
+                    return { valid: false, reason: `entry ${i + 1} starts before 00:00:00` };
+                }
+
+                if (sub.end <= sub.start) {
+                    return { valid: false, reason: `entry ${i + 1} has a non-positive duration` };
+                }
+
+                if (i > 0 && sub.start < subs[i - 1].start) {
+                    return { valid: false, reason: `entry ${i + 1} starts before entry ${i}` };
+                }
+            }
+
+            return { valid: true, reason: "" };
+        }
+
+        function evaluateDynamicResult(dynamicResult, globalMatchCount, totalEntries) {
+            if (!dynamicResult) {
+                return { useDynamic: false, reason: "not enough reliable anchor points" };
+            }
+
+            let minimumGain = Math.max(3, Math.ceil(totalEntries * 0.01));
+            let gain = dynamicResult.matches - globalMatchCount;
+
+            if (gain < minimumGain) {
+                return {
+                    useDynamic: false,
+                    reason: `the confidence gain was too small (${gain} matches; at least ${minimumGain} required)`
+                };
+            }
+
+            let validation = validateSubtitleTimeline(dynamicResult.syncedSubs);
+            if (!validation.valid) {
+                return { useDynamic: false, reason: validation.reason };
+            }
+
+            return { useDynamic: true, reason: "" };
         }
 
         /* --- DYNAMIC TIME WARPING (CORRIGIDO COM JANELA E EXPECTATIVA) --- */

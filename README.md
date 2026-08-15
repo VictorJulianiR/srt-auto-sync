@@ -13,6 +13,7 @@ A professional, browser-based utility to automatically synchronize translated su
 - **Automatic Offset Detection:** Finds the exact millisecond delay between files.
 - **Time-Stretching Analysis:** Detects if the lag is caused by framerate differences and calculates the exact multiplier.
 - **Robust Matching Algorithm:** Uses a "Histogram Voting" logic to find the best match even if some lines are missing or merged in the translation.
+- **Timeline Safety Guard:** Rejects low-value or non-monotonic dynamic corrections, preventing subtitle entries from jumping backward in time.
 - **100% Private:** All processing is done locally in your browser. Your files are never uploaded to a server.
 - **Modern UI:** Clean, responsive interface built with Tailwind CSS.
 
